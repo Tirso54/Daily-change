@@ -1,0 +1,6 @@
+{
+  "name": "Daily Challenge",
+  "description": "Una aplicación que propone un reto sencillo y aleatorio cada día para completar en la vida real, con sistema de rachas, categorías, almacenamiento local y un diseño impecable.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
