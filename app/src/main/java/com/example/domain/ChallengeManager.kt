@@ -32,30 +32,82 @@ class ChallengeManager(private val context: Context) {
                 cachedChallenges.addAll(newChallenges)
             } else {
                 // Fallback de emergencia si falla la API
-                val fallbacksEs = listOf(
-                    "Bebe un vaso de agua extra.",
-                    "Haz 5 respiraciones profundas con los ojos cerrados.",
-                    "Haz 10 sentadillas o flexiones.",
-                    "Sal a caminar 5 minutos sin rumbo fijo.",
-                    "Ordena un pequeño cajón de tu habitación.",
-                    "Siéntate en silencio durante 2 minutos.",
-                    "Estira los brazos y el cuello por 3 minutos.",
-                    "Escribe 3 cosas por las que estás agradecido hoy.",
-                    "Llama a un amigo o familiar que hace tiempo no ves.",
-                    "Lee 10 páginas de un libro."
-                )
-                val fallbacksEn = listOf(
-                    "Drink an extra glass of water.",
-                    "Take 5 deep breaths with your eyes closed.",
-                    "Do 10 squats or pushups.",
-                    "Take a 5-minute random walk outside.",
-                    "Organize a small drawer in your room.",
-                    "Sit in silence for 2 minutes.",
-                    "Stretch your arms and neck for 3 minutes.",
-                    "Write down 3 things you are grateful for today.",
-                    "Call a friend or family member you haven't spoken to in a while.",
-                    "Read 10 pages of a book."
-                )
+                val fallbacksEs = when (preferredCategory) {
+                    ChallengeCategory.FITNESS -> listOf(
+                        "Haz 10 sentadillas o flexiones.",
+                        "Sal a caminar 5 minutos sin rumbo fijo.",
+                        "Estira los brazos y el cuello por 3 minutos.",
+                        "Haz una plancha (plank) de 30 segundos.",
+                        "Sube y baja las escaleras durante 2 minutos."
+                    )
+                    ChallengeCategory.PRODUCTIVITY -> listOf(
+                        "Ordena un pequeño cajón de tu habitación o escritorio.",
+                        "Escribe en papel tus 3 prioridades principales de hoy.",
+                        "Planifica la comida o cena de mañana.",
+                        "Tira a la basura o recicla 3 objetos que ya no necesites.",
+                        "Dedica 5 minutos a limpiar la pantalla y teclado de tu ordenador (si está apagado)."
+                    )
+                    ChallengeCategory.CREATIVITY -> listOf(
+                        "Dibuja un boceto rápido de lo que tengas enfrente.",
+                        "Escribe un pequeño poema de 4 líneas sobre tu día.",
+                        "Canta o tararea una canción inventada por 1 minuto.",
+                        "Toma una foto de algo ordinario desde un ángulo inusual.",
+                        "Dobla una hoja de papel e intenta hacer un avión u origami diferente."
+                    )
+                    ChallengeCategory.MINDFULNESS -> listOf(
+                        "Haz 5 respiraciones profundas con los ojos cerrados.",
+                        "Siéntate en silencio absoluto durante 2 minutos.",
+                        "Escribe 3 cosas por las que estás agradecido hoy.",
+                        "Bebe un vaso de agua despacio, notando la temperatura.",
+                        "Cierra los ojos y presta atención a los sonidos más lejanos que escuches."
+                    )
+                    else -> listOf(
+                        "Bebe un vaso de agua extra.",
+                        "Haz 5 respiraciones profundas.",
+                        "Sal a caminar 5 minutos.",
+                        "Ordena tu espacio de trabajo.",
+                        "Llama a un amigo cercano."
+                    )
+                }
+
+                val fallbacksEn = when (preferredCategory) {
+                    ChallengeCategory.FITNESS -> listOf(
+                        "Do 10 squats or pushups.",
+                        "Take a 5-minute random walk outside.",
+                        "Stretch your arms and neck for 3 minutes.",
+                        "Hold a plank for 30 seconds.",
+                        "Walk up and down the stairs for 2 minutes."
+                    )
+                    ChallengeCategory.PRODUCTIVITY -> listOf(
+                        "Organize a small drawer or your desk.",
+                        "Write down on paper your top 3 priorities for today.",
+                        "Plan your meals for tomorrow.",
+                        "Throw away or recycle 3 items you no longer need.",
+                        "Spend 5 minutes cleaning your workspace."
+                    )
+                    ChallengeCategory.CREATIVITY -> listOf(
+                        "Draw a quick sketch of whatever is in front of you.",
+                        "Write a short 4-line poem about your day.",
+                        "Hum or sing a made-up song for 1 minute.",
+                        "Take a photo of something ordinary from an unusual angle.",
+                        "Fold a piece of paper and make a paper airplane."
+                    )
+                    ChallengeCategory.MINDFULNESS -> listOf(
+                        "Take 5 deep breaths with your eyes closed.",
+                        "Sit in absolute silence for 2 minutes.",
+                        "Write down 3 things you are grateful for today.",
+                        "Drink a glass of water slowly, noticing its temperature.",
+                        "Close your eyes and listen to the farthest sounds you can hear."
+                    )
+                    else -> listOf(
+                        "Drink an extra glass of water.",
+                        "Take 5 deep breaths.",
+                        "Take a 5-minute walk.",
+                        "Organize your workspace.",
+                        "Call a close friend."
+                    )
+                }
+                
                 cachedChallenges.addAll(if (language == "en") fallbacksEn.shuffled() else fallbacksEs.shuffled())
             }
         }
