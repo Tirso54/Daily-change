@@ -33,13 +33,13 @@ class ChallengeRepository(
      * Checks if there's a daily challenge for today.
      * Generates a new one if it's a new day or if no state exists yet.
      */
-    suspend fun syncDailyChallenge() = withContext(Dispatchers.IO) {
+    suspend fun syncDailyChallenge(category: ChallengeCategory, language: String) = withContext(Dispatchers.IO) {
         val today = getTodayDateString()
         val existingState = challengeDao.getAppState()
 
         if (existingState == null) {
             // First run: generate a random challenge
-            val newChallenge = challengeManager.getRandomChallenge(excludeId = null)
+            val newChallenge = challengeManager.getRandomChallenge(excludeId = null, preferredCategory = category, language = language)
             val newState = DbAppState(
                 id = 1,
                 currentChallengeId = newChallenge.id,
@@ -68,7 +68,11 @@ class ChallengeRepository(
                 }
 
                 // Generate new challenge avoiding the previous one
-                val newChallenge = challengeManager.getRandomChallenge(excludeId = existingState.currentChallengeId)
+                val newChallenge = challengeManager.getRandomChallenge(
+                    excludeId = existingState.currentChallengeId,
+                    preferredCategory = category,
+                    language = language
+                )
                 
                 val newState = DbAppState(
                     id = 1,
@@ -136,12 +140,16 @@ class ChallengeRepository(
      * Generates a new challenge manually.
      * Keeps current streak active, but resets completion for the new challenge.
      */
-    suspend fun generateNewChallenge() = withContext(Dispatchers.IO) {
+    suspend fun generateNewChallenge(category: ChallengeCategory, language: String) = withContext(Dispatchers.IO) {
         val today = getTodayDateString()
         val existingState = challengeDao.getAppState()
         val excludeId = existingState?.currentChallengeId
 
-        val newChallenge = challengeManager.getRandomChallenge(excludeId = excludeId)
+        val newChallenge = challengeManager.getRandomChallenge(
+            excludeId = excludeId,
+            preferredCategory = category,
+            language = language
+        )
         
         val newState = DbAppState(
             id = 1,
@@ -213,11 +221,11 @@ class ChallengeRepository(
     /**
      * Clears local history and resets state.
      */
-    suspend fun resetAllProgress() = withContext(Dispatchers.IO) {
+    suspend fun resetAllProgress(category: ChallengeCategory, language: String) = withContext(Dispatchers.IO) {
         challengeDao.clearCompletedHistory()
         
         val today = getTodayDateString()
-        val newChallenge = challengeManager.getRandomChallenge(excludeId = null)
+        val newChallenge = challengeManager.getRandomChallenge(excludeId = null, preferredCategory = category, language = language)
         val newState = DbAppState(
             id = 1,
             currentChallengeId = newChallenge.id,

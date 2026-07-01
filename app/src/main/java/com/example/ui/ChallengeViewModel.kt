@@ -1,25 +1,24 @@
 package com.example.ui
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.data.AppDatabase
 import com.example.data.ChallengeRepository
 import com.example.data.DbAppState
 import com.example.data.DbCompletedChallenge
-import com.example.domain.ChallengeManager
+import com.example.data.UserPreferences
+import com.example.model.ChallengeCategory
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class ChallengeViewModel(
-    private val repository: ChallengeRepository
+    private val repository: ChallengeRepository,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
-    // Expose reactive database state
     val appState: StateFlow<DbAppState?> = repository.appStateFlow
         .stateIn(
             scope = viewModelScope,
@@ -34,27 +33,59 @@ class ChallengeViewModel(
             initialValue = emptyList()
         )
 
+    val themeSetting: StateFlow<String> = userPreferences.themeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "SYSTEM")
+        
+    val languageSetting: StateFlow<String> = userPreferences.languageFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "es")
+        
+    val categorySetting: StateFlow<String> = userPreferences.categoryFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "ANY")
+
+    var isGenerating = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     init {
-        // Automatically sync challenge on startup
-        syncDaily()
+        // We defer syncDaily until we have access to preferences
+        viewModelScope.launch {
+            syncDaily()
+        }
+    }
+
+    private suspend fun getPreferredCategory(): ChallengeCategory {
+        val catName = userPreferences.categoryFlow.first()
+        return try {
+            ChallengeCategory.valueOf(catName)
+        } catch (e: Exception) {
+            ChallengeCategory.ANY
+        }
+    }
+
+    private suspend fun getLanguage(): String {
+        return userPreferences.languageFlow.first()
     }
 
     fun syncDaily() {
         viewModelScope.launch {
+            isGenerating.value = true
             try {
-                repository.syncDailyChallenge()
+                repository.syncDailyChallenge(getPreferredCategory(), getLanguage())
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isGenerating.value = false
             }
         }
     }
 
     fun generateNewChallenge() {
         viewModelScope.launch {
+            isGenerating.value = true
             try {
-                repository.generateNewChallenge()
+                repository.generateNewChallenge(getPreferredCategory(), getLanguage())
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isGenerating.value = false
             }
         }
     }
@@ -71,20 +102,29 @@ class ChallengeViewModel(
 
     fun resetAllProgress() {
         viewModelScope.launch {
+            isGenerating.value = true
             try {
-                repository.resetAllProgress()
+                repository.resetAllProgress(getPreferredCategory(), getLanguage())
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isGenerating.value = false
             }
         }
     }
 
-    // Factory pattern to instantiate ChallengeViewModel with custom repository parameters
-    class Factory(private val repository: ChallengeRepository) : ViewModelProvider.Factory {
+    fun setTheme(theme: String) = viewModelScope.launch { userPreferences.setTheme(theme) }
+    fun setLanguage(lang: String) = viewModelScope.launch { userPreferences.setLanguage(lang) }
+    fun setCategory(cat: String) = viewModelScope.launch { userPreferences.setCategory(cat) }
+
+    class Factory(
+        private val repository: ChallengeRepository,
+        private val userPreferences: UserPreferences
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(ChallengeViewModel::class.java)) {
-                return ChallengeViewModel(repository) as T
+                return ChallengeViewModel(repository, userPreferences) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
