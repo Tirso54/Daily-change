@@ -34,13 +34,13 @@ class ChallengeViewModel(
         )
 
     val themeSetting: StateFlow<String> = userPreferences.themeFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "SYSTEM")
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "SYSTEM")
         
     val languageSetting: StateFlow<String> = userPreferences.languageFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "es")
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "es")
         
     val categorySetting: StateFlow<String> = userPreferences.categoryFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "ANY")
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "ANY")
 
     var isGenerating = kotlinx.coroutines.flow.MutableStateFlow(false)
 
@@ -51,8 +51,8 @@ class ChallengeViewModel(
         }
     }
 
-    private suspend fun getPreferredCategory(): ChallengeCategory {
-        val catName = userPreferences.categoryFlow.first()
+    private fun getPreferredCategory(): ChallengeCategory {
+        val catName = categorySetting.value
         return try {
             ChallengeCategory.valueOf(catName)
         } catch (e: Exception) {
@@ -60,8 +60,9 @@ class ChallengeViewModel(
         }
     }
 
-    private suspend fun getLanguage(): String {
-        return userPreferences.languageFlow.first()
+    private fun getLanguage(): String {
+        val lang = languageSetting.value
+        return if (lang == "SYSTEM" || lang.isEmpty()) "es" else lang
     }
 
     fun syncDaily() {
