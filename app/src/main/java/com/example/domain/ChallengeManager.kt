@@ -26,12 +26,18 @@ class ChallengeManager(private val context: Context) {
         val cachedStr = prefs.getString(cacheKey, "") ?: ""
         val cachedChallenges = if (cachedStr.isEmpty()) mutableListOf() else cachedStr.split("|||").filter { it.isNotBlank() }.toMutableList()
 
+        val usedKey = "used_challenges_$language"
+        val usedStr = prefs.getString(usedKey, "") ?: ""
+        var usedSet = if (usedStr.isEmpty()) mutableSetOf<String>() else usedStr.split("|||").filter { it.isNotBlank() }.toMutableSet()
+
         if (cachedChallenges.isEmpty()) {
             val newChallenges = fetchFromGemini(preferredCategory, language)
-            if (newChallenges.isNotEmpty()) {
-                cachedChallenges.addAll(newChallenges)
+            val filteredNew = newChallenges.filter { !usedSet.contains(it) }
+            
+            if (filteredNew.isNotEmpty()) {
+                cachedChallenges.addAll(filteredNew)
             } else {
-                // Fallback de emergencia si falla la API
+                // Fallback de emergencia si falla la API o todos los nuevos ya se usaron
                 val fallbacksEs = when (preferredCategory) {
                     ChallengeCategory.FITNESS -> listOf(
                         "Haz 10 sentadillas o flexiones.",
@@ -63,9 +69,18 @@ class ChallengeManager(private val context: Context) {
                     )
                     else -> listOf(
                         "Bebe un vaso de agua extra.",
-                        "Haz 5 respiraciones profundas.",
-                        "Sal a caminar 5 minutos.",
-                        "Ordena tu espacio de trabajo.",
+                        "Haz 10 sentadillas o flexiones.",
+                        "Sal a caminar 5 minutos sin rumbo fijo.",
+                        "Estira los brazos y el cuello por 3 minutos.",
+                        "Haz una plancha (plank) de 30 segundos.",
+                        "Ordena un pequeño cajón de tu habitación o escritorio.",
+                        "Escribe en papel tus 3 prioridades principales de hoy.",
+                        "Tira a la basura o recicla 3 objetos que ya no necesites.",
+                        "Dibuja un boceto rápido de lo que tengas enfrente.",
+                        "Canta o tararea una canción inventada por 1 minuto.",
+                        "Haz 5 respiraciones profundas con los ojos cerrados.",
+                        "Siéntate en silencio absoluto durante 2 minutos.",
+                        "Escribe 3 cosas por las que estás agradecido hoy.",
                         "Llama a un amigo cercano."
                     )
                 }
@@ -101,18 +116,39 @@ class ChallengeManager(private val context: Context) {
                     )
                     else -> listOf(
                         "Drink an extra glass of water.",
-                        "Take 5 deep breaths.",
-                        "Take a 5-minute walk.",
-                        "Organize your workspace.",
+                        "Do 10 squats or pushups.",
+                        "Take a 5-minute random walk outside.",
+                        "Stretch your arms and neck for 3 minutes.",
+                        "Hold a plank for 30 seconds.",
+                        "Organize a small drawer or your desk.",
+                        "Write down on paper your top 3 priorities for today.",
+                        "Throw away or recycle 3 items you no longer need.",
+                        "Draw a quick sketch of whatever is in front of you.",
+                        "Hum or sing a made-up song for 1 minute.",
+                        "Take 5 deep breaths with your eyes closed.",
+                        "Sit in absolute silence for 2 minutes.",
+                        "Write down 3 things you are grateful for today.",
                         "Call a close friend."
                     )
                 }
                 
-                cachedChallenges.addAll(if (language == "en") fallbacksEn.shuffled() else fallbacksEs.shuffled())
+                val fallbackList = if (language == "en") fallbacksEn.shuffled() else fallbacksEs.shuffled()
+                var filteredFallbacks = fallbackList.filter { !usedSet.contains(it) }
+                
+                // Si nos quedamos sin fallbacks únicos, reiniciamos el historial
+                if (filteredFallbacks.isEmpty()) {
+                    usedSet.clear()
+                    filteredFallbacks = fallbackList
+                }
+                
+                cachedChallenges.addAll(filteredFallbacks)
             }
         }
 
         val text = cachedChallenges.removeAt(0)
+        
+        usedSet.add(text)
+        prefs.edit().putString(usedKey, usedSet.joinToString("|||")).apply()
         
         prefs.edit().putString(cacheKey, cachedChallenges.joinToString("|||")).apply()
 
@@ -129,12 +165,19 @@ class ChallengeManager(private val context: Context) {
         isPrefetching = true
         try {
             val newChallenges = fetchFromGemini(preferredCategory, language)
-            if (newChallenges.isNotEmpty()) {
+            
+            val usedKey = "used_challenges_$language"
+            val usedStr = prefs.getString(usedKey, "") ?: ""
+            val usedSet = if (usedStr.isEmpty()) mutableSetOf<String>() else usedStr.split("|||").filter { it.isNotBlank() }.toMutableSet()
+            
+            val filteredNew = newChallenges.filter { !usedSet.contains(it) }
+            
+            if (filteredNew.isNotEmpty()) {
                 val currentStr = prefs.getString(cacheKey, "") ?: ""
                 val currentCache = if (currentStr.isEmpty()) mutableListOf() else currentStr.split("|||").filter { it.isNotBlank() }.toMutableList()
                 
                 // Add only unique new challenges that are not already in cache
-                for (c in newChallenges) {
+                for (c in filteredNew) {
                     if (!currentCache.contains(c)) {
                         currentCache.add(c)
                     }
