@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val database = AppDatabase.getDatabase(applicationContext)
-        val challengeManager = ChallengeManager()
+        val challengeManager = ChallengeManager(applicationContext)
         val repository = ChallengeRepository(database.challengeDao(), challengeManager)
         val userPreferences = UserPreferences(applicationContext)
         val viewModelFactory = ChallengeViewModel.Factory(repository, userPreferences)
@@ -274,7 +274,7 @@ fun ChallengeSection(
             AnimatedContent(
                 targetState = isCompletedToday,
                 transitionSpec = {
-                    scaleIn(animationSpec = tween(400)) togetherWith fadeOut(animationSpec = tween(200))
+                    scaleIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(100))
                 },
                 label = "StatusBadge"
             ) { completed ->

@@ -1,5 +1,6 @@
 package com.example.domain
 
+import android.content.Context
 import com.example.BuildConfig
 import com.example.model.Challenge
 import com.example.model.ChallengeCategory
@@ -8,17 +9,65 @@ import com.example.network.GeminiApiClient
 import com.example.network.GenerateContentRequest
 import com.example.network.GenerationConfig
 import com.example.network.Part
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
-import kotlin.random.Random
 
-class ChallengeManager {
+class ChallengeManager(private val context: Context) {
+
+    private val prefs = context.getSharedPreferences("daily_challenge_cache", Context.MODE_PRIVATE)
+    private val prefetchScope = CoroutineScope(Dispatchers.IO)
+    private var isPrefetching = false
 
     suspend fun getRandomChallenge(excludeId: String?, preferredCategory: ChallengeCategory, language: String): Challenge = withContext(Dispatchers.IO) {
+        val cacheKey = "${preferredCategory.name}_$language"
+        val cachedStr = prefs.getString(cacheKey, "") ?: ""
+        val cachedChallenges = if (cachedStr.isEmpty()) mutableListOf() else cachedStr.split("|||").toMutableList()
+
+        if (cachedChallenges.isEmpty()) {
+            val newChallenges = fetchFromGemini(preferredCategory, language)
+            if (newChallenges.isNotEmpty()) {
+                cachedChallenges.addAll(newChallenges)
+            } else {
+                // Fallback de emergencia si falla la API
+                cachedChallenges.add(if (language == "en") "Take 5 deep breaths with your eyes closed." else "Haz 5 respiraciones profundas con los ojos cerrados.")
+            }
+        }
+
+        val text = cachedChallenges.removeAt(0)
+        
+        prefs.edit().putString(cacheKey, cachedChallenges.joinToString("|||")).apply()
+
+        if (cachedChallenges.size < 4 && !isPrefetching) {
+            prefetchScope.launch {
+                prefetchChallenges(preferredCategory, language, cacheKey)
+            }
+        }
+
+        return@withContext createChallengeObj(text, preferredCategory)
+    }
+
+    private suspend fun prefetchChallenges(preferredCategory: ChallengeCategory, language: String, cacheKey: String) {
+        isPrefetching = true
+        try {
+            val newChallenges = fetchFromGemini(preferredCategory, language)
+            if (newChallenges.isNotEmpty()) {
+                val currentStr = prefs.getString(cacheKey, "") ?: ""
+                val currentCache = if (currentStr.isEmpty()) mutableListOf() else currentStr.split("|||").toMutableList()
+                currentCache.addAll(newChallenges)
+                prefs.edit().putString(cacheKey, currentCache.joinToString("|||")).apply()
+            }
+        } finally {
+            isPrefetching = false
+        }
+    }
+
+    private suspend fun fetchFromGemini(preferredCategory: ChallengeCategory, language: String): MutableList<String> {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext getFallbackChallenge(preferredCategory)
+            return mutableListOf()
         }
 
         val categoryStr = if (preferredCategory == ChallengeCategory.ANY) {
@@ -30,16 +79,18 @@ class ChallengeManager {
         val langInstruction = if (language == "en") "Respond in English." else "Responde en Español."
 
         val prompt = """
-            Eres el generador de retos de la app 'Daily Challenge'.
-            Genera UN (1) solo reto diario simple y accionable para que el usuario lo complete hoy en la vida real (mundo físico).
-            El reto debe ser sobre: $categoryStr.
+            Eres un generador muy creativo para la app 'Daily Challenge'.
+            Genera 10 retos diarios simples y accionables para que el usuario los complete hoy en el mundo físico.
+            La temática debe ser sobre: $categoryStr.
             
-            Reglas:
-            - Debe ser algo que se pueda hacer en menos de 30 minutos.
-            - Fomenta la desconexión: evita por completo retos que requieran usar el teléfono móvil, ordenador o pantallas (por ejemplo, nada de "escribe a un amigo por mensaje" o "busca en internet"). En su lugar, sugiere actividades manuales, físicas, de introspección, interacción cara a cara o al aire libre.
+            Reglas críticas:
+            - Deben ser extremadamente originales, poco comunes y sorprendentes. Evita los clichés de siempre.
+            - Nunca repitas retos anteriores, siempre genera ideas totalmente nuevas.
+            - Deben ser cosas que se puedan hacer en menos de 30 minutos.
+            - Fomenta la desconexión total: nada de teléfonos, ordenadores o pantallas.
             - $langInstruction
-            - Devuelve ÚNICAMENTE el texto del reto sin comillas, introducciones, ni saludos.
-            - El texto debe ser corto (máximo 2 oraciones).
+            - Devuelve ÚNICAMENTE los textos de los retos, uno por línea, separados por un salto de línea, sin numeración ni viñetas.
+            - Cada texto debe ser corto (máximo 2 oraciones).
         """.trimIndent()
 
         val request = GenerateContentRequest(
@@ -54,30 +105,31 @@ class ChallengeManager {
             val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim()
             
             if (!text.isNullOrEmpty()) {
-                val resolvedCategory = if (preferredCategory == ChallengeCategory.ANY) {
-                    ChallengeCategory.entries.filter { it != ChallengeCategory.ANY }.random()
-                } else {
-                    preferredCategory
+                val lines = text.split("\n")
+                    .map { it.trim().removePrefix("-").removePrefix("*").replace(Regex("^[0-9]+\\.\\s*"), "").trim() }
+                    .filter { it.isNotEmpty() }
+                
+                if (lines.isNotEmpty()) {
+                    return lines.toMutableList()
                 }
-                return@withContext Challenge(
-                    id = UUID.randomUUID().toString(),
-                    text = text.replace("\"", ""),
-                    category = resolvedCategory
-                )
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        return@withContext getFallbackChallenge(preferredCategory)
+        return mutableListOf()
     }
-    
-    private fun getFallbackChallenge(pref: ChallengeCategory): Challenge {
-        val randomCat = if (pref == ChallengeCategory.ANY) ChallengeCategory.entries.filter { it != ChallengeCategory.ANY }.random() else pref
+
+    private fun createChallengeObj(text: String, preferredCategory: ChallengeCategory): Challenge {
+        val resolvedCategory = if (preferredCategory == ChallengeCategory.ANY) {
+            ChallengeCategory.entries.filter { it != ChallengeCategory.ANY }.random()
+        } else {
+            preferredCategory
+        }
         return Challenge(
             id = UUID.randomUUID().toString(),
-            text = "Bebe un vaso extra de agua hoy.",
-            category = randomCat
+            text = text.replace("\"", ""),
+            category = resolvedCategory
         )
     }
 }
